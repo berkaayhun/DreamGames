@@ -27,12 +27,10 @@ public class CubeBoard : MonoBehaviour
 
     void InitializeBoard()
     {
-        // 1. ÖNCE ESKİLERİ YOK ET (Cleanup)
         if (cubeBoardGO != null)
         {
             foreach (Transform child in cubeBoardGO.transform)
             {
-                // Unity'de objeleri sahneden tamamen siler
                 Destroy(child.gameObject);
             }
         }
@@ -114,7 +112,6 @@ public class CubeBoard : MonoBehaviour
 
     MatchResult IsConnected(Cube cube){
         List<Cube> connectedCubes = new List<Cube>();
-        // DÜZELTME: Cube.CubeType olarak erişildi
         Cube.CubeType cubeType = cube.cubeType; 
         connectedCubes.Add(cube);
 
@@ -164,7 +161,6 @@ public class CubeBoard : MonoBehaviour
     }
 
     void CheckDirection(Cube cub, Vector2Int direction, List<Cube> connectedCubes){
-        // DÜZELTME: Cube.CubeType olarak erişildi
         Cube.CubeType cubeType = cub.cubeType; 
         int x = cub.xIndex + direction.x;
         int y = cub.yIndex + direction.y;
