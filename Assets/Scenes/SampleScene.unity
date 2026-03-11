@@ -339,6 +339,16 @@ MonoBehaviour:
   - {fileID: 5722092552441811635, guid: 6b9bc41d827054a8a92925e8dcad101e, type: 3}
   - {fileID: 3806551337129010440, guid: 41ec8d568f29d42939b80adc7e0c8f70, type: 3}
   cubeBoardGO: {fileID: 901052946}
+  arrayLayout:
+    rows:
+    - row: 000000000000
+    - row: 000000000000
+    - row: 000000000000
+    - row: 000000000000
+    - row: 000000000000
+    - row: 000000000000
+    - row: 000000000000
+    - row: 000000000000
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
