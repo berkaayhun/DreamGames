@@ -1,197 +1,199 @@
 using UnityEngine;
+using System.Collections;
 using System.Collections.Generic;
 
 public class CubeBoard : MonoBehaviour
 {
+    public static CubeBoard Instance;
+    
     public int width = 6;
     public int height = 8;
+
+    public GameObject[] cubePrefabs;
+    public GameObject cubeBoardGO;
+    public GameObject boxPrefab;
+
+    public Node[,] cubeBoard;
 
     private float spacingX;
     private float spacingY;
 
-    public GameObject[] cubePrefabs;
-    public Node[,] cubeBoard;
-    public GameObject cubeBoardGO; 
-    public ArrayLayout arrayLayout;
-    public static CubeBoard Instance;
+    [SerializeField] private bool isProcessingMove;
 
-    public void Awake()
-    {
-        Instance = this;
-    }
+    void Awake() => Instance = this;
+    void Start() => InitializeBoard();
 
-    void Start()
+    void Update()
     {
-        InitializeBoard();
+        if (isProcessingMove) return;
+
+        if (Input.GetMouseButtonDown(0))
+        {
+            Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+            RaycastHit2D hit = Physics2D.Raycast(ray.origin, ray.direction);
+
+            if (hit.collider != null)
+            {
+                Cube cube = hit.collider.gameObject.GetComponent<Cube>();
+                if (cube != null)
+                {
+                    Debug.Log("Tıklanan küp: " + cube.cubeType + " [" + cube.xIndex + "," + cube.yIndex + "]");
+                    SelectCube(cube);
+                }
+            }
+        }
     }
 
     void InitializeBoard()
     {
         if (cubeBoardGO != null)
-        {
             foreach (Transform child in cubeBoardGO.transform)
-            {
                 Destroy(child.gameObject);
-            }
-        }
-        cubeBoard = new Node[width, height];
 
+        cubeBoard = new Node[width, height];
         spacingX = (float)(width - 1) / 2f;
         spacingY = (float)(height - 1) / 2f;
 
         for (int y = 0; y < height; y++)
-        {
             for (int x = 0; x < width; x++)
+                SpawnCube(x, y);
+
+        Debug.Log("Board hazır, oyun başlıyor!");
+    }
+
+    void SpawnCube(int x, int y)
+    {
+        Vector2 pos = new Vector2(x - spacingX, y - spacingY);
+        int randomIndex = Random.Range(0, cubePrefabs.Length);
+        GameObject cubeGO = Instantiate(
+            cubePrefabs[randomIndex], pos, Quaternion.identity, cubeBoardGO.transform);
+
+        Cube cube = cubeGO.GetComponent<Cube>();
+        cube.SetIndices(x, y);
+        cubeBoard[x, y] = new Node(true, cubeGO);
+    }
+
+    void SelectCube(Cube cube)
+    {
+        List<Cube> group = GetBlastGroup(cube);
+        Debug.Log("Grup büyüklüğü: " + group.Count);
+
+        if (group.Count < 2)
+        {
+            Debug.Log("Yeterli komşu yok, blast olmadı.");
+            return;
+        }
+
+        isProcessingMove = true;
+        StartCoroutine(BlastAndRefill(group));
+    }
+
+    void SpawnBox(int x, int y)
+    {
+    Vector2 pos = new Vector2(x - spacingX, y - spacingY);
+    GameObject boxGO = Instantiate(boxPrefab, pos, Quaternion.identity, cubeBoardGO.transform);
+
+    BoxObstacle box = boxGO.GetComponent<BoxObstacle>();
+    box.SetIndices(x, y);
+
+    cubeBoard[x, y] = new Node(true, boxGO);
+    } 
+      
+    List<Cube> GetBlastGroup(Cube startCube)
+    {
+        List<Cube> result = new List<Cube>();
+        Queue<Cube> queue = new Queue<Cube>();
+        HashSet<Cube> visited = new HashSet<Cube>();
+
+        queue.Enqueue(startCube);
+        visited.Add(startCube);
+
+        int[] dx = { 1, -1, 0, 0 };
+        int[] dy = { 0, 0, 1, -1 };
+
+        while (queue.Count > 0)
+        {
+            Cube current = queue.Dequeue();
+            result.Add(current);
+
+            for (int i = 0; i < 4; i++)
             {
-                if (cubePrefabs == null || cubePrefabs.Length == 0)
+                int nx = current.xIndex + dx[i];
+                int ny = current.yIndex + dy[i];
+
+                if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+                if (cubeBoard[nx, ny]?.cube == null) continue;
+
+                Cube neighbor = cubeBoard[nx, ny].cube.GetComponent<Cube>();
+                if (neighbor == null || visited.Contains(neighbor)) continue;
+
+                if (neighbor.cubeType == startCube.cubeType)
                 {
-                    Debug.LogError("Lütfen Inspector panelinden Cube Prefabs listesini doldur!");
-                    return;
-                }
-
-                Vector2 position = new Vector2(x - spacingX, y - spacingY);
-                if(arrayLayout.rows[y].row[x]){
-                    cubeBoard[x,y] = new Node(false,null);
-                }else{
-                    int randomIndex = Random.Range(0, cubePrefabs.Length);
-                    GameObject cube = Instantiate(cubePrefabs[randomIndex], position, Quaternion.identity);
-
-                    if (cubeBoardGO != null)
-                    {
-                        cube.transform.parent = cubeBoardGO.transform;
-                    }
-
-                    Cube cubeScript = cube.GetComponent<Cube>();
-                    if (cubeScript != null)
-                    {
-                        cubeScript.SetIndices(x, y);
-                        cubeBoard[x, y] = new Node(true, cube);
-                    }
-                    else
-                    {
-                        Debug.LogWarning(cube.name + " üzerinde Cube scripti bulunamadı!");
-                    }
+                    visited.Add(neighbor);
+                    queue.Enqueue(neighbor);
                 }
             }
         }
-        
-        if(CheckBoard()){
-            Debug.Log("We have matches let's re-create the board:");
-            InitializeBoard();
-        }else{
-            Debug.Log("There are no matches, it's time to start the game! ");
-        }
 
+        return result;
     }
 
-    public bool CheckBoard(){
-            Debug.Log("Checking Board");
-            bool hasMatched = false;
+    IEnumerator BlastAndRefill(List<Cube> group)
+    {
+        foreach (Cube cube in group)
+        {
+            cube.ShowDestroyIcon();
+        }
 
-            List<Cube> cubesToRemove = new List<Cube>();
+        yield return new WaitForSeconds(0.12f);
 
-            for(int x = 0; x < width; x++){
-                for(int y = 0; y < height; y++ ){
-                    if(cubeBoard[x,y].isUsable && cubeBoard[x,y].cube != null){
-                        Cube cube = cubeBoard[x,y].cube.GetComponent<Cube>();
-                        if(!cube.isMatched){
-                            MatchResult matchedCubes = IsConnected(cube);
+        foreach (Cube cube in group)
+        {
+            cubeBoard[cube.xIndex, cube.yIndex].cube = null;
+            Destroy(cube.gameObject);
+        }
 
-                            if(matchedCubes.connectedCubes.Count >= 3){
-                                cubesToRemove.AddRange(matchedCubes.connectedCubes);
-                                foreach(Cube cub in matchedCubes.connectedCubes)
-                                    cub.isMatched = true;
-                                hasMatched = true;
-                            }
+    yield return new WaitForSeconds(0.15f);
+
+        yield return new WaitForSeconds(0.15f);
+
+        for (int x = 0; x < width; x++)
+        {
+            for (int y = 0; y < height; y++)
+            {
+                if (cubeBoard[x, y].cube == null)
+                {
+                    for (int yAbove = y + 1; yAbove < height; yAbove++)
+                    {
+                        if (cubeBoard[x, yAbove].cube != null)
+                        {
+                            GameObject fallingGO = cubeBoard[x, yAbove].cube;
+                            Cube fallingCube = fallingGO.GetComponent<Cube>();
+
+                            cubeBoard[x, y].cube = fallingGO;
+                            cubeBoard[x, yAbove].cube = null;
+
+                            fallingCube.SetIndices(x, y);
+
+                            Vector2 targetPos = new Vector2(x - spacingX, y - spacingY);
+                            fallingCube.MoveToTarget(targetPos);
+
+                            break;
                         }
                     }
                 }
             }
-            return hasMatched;
-    }       
-
-    MatchResult IsConnected(Cube cube){
-        List<Cube> connectedCubes = new List<Cube>();
-        Cube.CubeType cubeType = cube.cubeType; 
-        connectedCubes.Add(cube);
-
-        CheckDirection(cube, new Vector2Int(1,0), connectedCubes); 
-        CheckDirection(cube, new Vector2Int(-1,0), connectedCubes); 
-
-        if(connectedCubes.Count == 3){
-            Debug.Log("I have a normal horizontal match, the colof my match is: " + connectedCubes[0].cubeType);
-            return new MatchResult{
-                
-                connectedCubes = new List<Cube>(connectedCubes),
-                direction = MatchDirection.Horizontal
-            };
         }
-        if(connectedCubes.Count > 3){
-            Debug.Log("I have a Long horizontal match, the colof my match is: " + connectedCubes[0].cubeType);
-            return new MatchResult{
-                connectedCubes = new List<Cube>(connectedCubes),
-                direction = MatchDirection.LongHorizontal
-            };
-        }
+        yield return new WaitForSeconds(0.25f);
 
-        connectedCubes.Clear();
-        connectedCubes.Add(cube);
+        for (int x = 0; x < width; x++)
+            for (int y = 0; y < height; y++)
+                if (cubeBoard[x, y].cube == null)
+                    SpawnCube(x, y);
 
-        CheckDirection(cube, new Vector2Int(0,1), connectedCubes); 
-        CheckDirection(cube, new Vector2Int(0,-1), connectedCubes); 
+        yield return new WaitForSeconds(0.1f);
 
-        if(connectedCubes.Count == 3){
-            Debug.Log("I have a normal vertical match, the colof my match is: " + connectedCubes[0].cubeType);
-            return new MatchResult{
-                connectedCubes = new List<Cube>(connectedCubes),
-                direction = MatchDirection.Vertical
-            };
-        }else if(connectedCubes.Count > 3){
-            Debug.Log("I have a Long horizontal match, the colof my match is: " + connectedCubes[0].cubeType);
-            return new MatchResult{
-                connectedCubes = new List<Cube>(connectedCubes),
-                direction = MatchDirection.LongVertical
-            };
-        }else{
-            return new MatchResult{
-                connectedCubes = connectedCubes,
-                direction = MatchDirection.None
-            };
-        }
+        isProcessingMove = false;
+        Debug.Log("Blast tamamlandı, yeni tıklama bekleniyor.");
     }
-
-    void CheckDirection(Cube cub, Vector2Int direction, List<Cube> connectedCubes){
-        Cube.CubeType cubeType = cub.cubeType; 
-        int x = cub.xIndex + direction.x;
-        int y = cub.yIndex + direction.y;
-
-        while(x >= 0 && x < width && y >= 0 && y < height){
-            if(cubeBoard[x,y].isUsable && cubeBoard[x,y].cube != null){
-                Cube neighbourCube = cubeBoard[x,y].cube.GetComponent<Cube>();
-                if(!neighbourCube.isMatched && neighbourCube.cubeType == cubeType){
-                    connectedCubes.Add(neighbourCube);
-                    x += direction.x;
-                    y += direction.y;
-                }else{
-                    break;
-                }
-            }else{
-                break;
-            }
-        }
-    }
-}
-
-public class MatchResult{
-    public List<Cube> connectedCubes;
-    public MatchDirection direction;
-}
-
-public enum MatchDirection{
-    Vertical,
-    Horizontal,
-    LongVertical,
-    LongHorizontal,
-    Super,
-    None
 }

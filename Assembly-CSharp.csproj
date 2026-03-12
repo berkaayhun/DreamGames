@@ -51,6 +51,8 @@
     <Compile Include="Assets/Scripts/CubeBoard.cs" />
     <Compile Include="Assets/Scripts/ArrayLayout.cs" />
     <Compile Include="Assets/Scripts/Node.cs" />
+    <Compile Include="Assets/Scripts/Box.cs" />
+    <Compile Include="Assets/Scripts/AutoDestroy.cs" />
     <Compile Include="Assets/Scripts/Cube.cs" />
   </ItemGroup>
   <ItemGroup>
