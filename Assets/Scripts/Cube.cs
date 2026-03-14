@@ -8,7 +8,8 @@ public class Cube : MonoBehaviour
     public bool isMoving;
     public CubeType cubeType;
     public GameObject destroyIcon;
-
+    public GameObject rocketHintIcon;
+    
     public void SetIndices(int x, int y)
     {
         xIndex = x;
@@ -17,15 +18,29 @@ public class Cube : MonoBehaviour
 
     public void ShowDestroyIcon()
     {   
-    if (destroyIcon == null)
+        if (destroyIcon == null)
+        {
+            Debug.LogWarning("destroyIcon boş!");
+            return;
+        }
+
+        Instantiate(destroyIcon, transform.position, Quaternion.identity);
+    }
+
+    public void SetRocketHint(bool isEligible)
     {
-        Debug.LogWarning("destroyIcon boş!");
-        return;
-    }
+        if (rocketHintIcon != null)
+        {
+            rocketHintIcon.SetActive(isEligible);
 
-    Instantiate(destroyIcon, transform.position, Quaternion.identity);
+            SpriteRenderer cubeSprite = GetComponent<SpriteRenderer>();
+            if (cubeSprite != null)
+            {
+               
+                cubeSprite.enabled = !isEligible; 
+            }
+        }
     }
-
     public void MoveToTarget(Vector2 targetPos)
     {
         StartCoroutine(MoveCoroutine(targetPos));
